@@ -1,68 +1,72 @@
-import configparser
-import logging
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, Color
+from configparser import ConfigParser
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+import os
 
-logger = logging.getLogger('excel_data_writer')
+def load_table_styles():
+    """Load styles from table_format.ini configuration file"""
+    config = ConfigParser()
+    config.read(os.path.join('config', 'table_format.ini'))
+    
+    styles = {}
+    
+    def parse_style(section):
+        style = {}
+        
+        # Parse font
+        if config.has_option(section, 'font'):
+            font_parts = [p.split('=') for p in config.get(section, 'font').split(', ')]
+            font_kwargs = {k.strip(): v.strip() for k, v in font_parts}
+            style['font'] = Font(**{
+                'name': font_kwargs.get('name', 'Calibri'),
+                'bold': font_kwargs.get('bold', 'False') == 'True',
+                'size': int(font_kwargs.get('size', 11)),
+                'color': font_kwargs.get('color', '000000')
+            })
+        
+        # Parse fill
+        if config.has_option(section, 'fill'):
+            fill_parts = [p.split('=') for p in config.get(section, 'fill').split(', ')]
+            fill_kwargs = {k.strip(): v.strip() for k, v in fill_parts}
+            style['fill'] = PatternFill(
+                start_color=fill_kwargs.get('start_color', 'FFFFFF'),
+                end_color=fill_kwargs.get('end_color', 'FFFFFF'),
+                fill_type=fill_kwargs.get('fill_type', 'solid')
+            )
+        
+        # Parse border
+        if config.has_option(section, 'border'):
+            border_parts = [p.split('=') for p in config.get(section, 'border').split(', ')]
+            border_kwargs = {k.strip(): v.strip() for k, v in border_parts}
+            border_side = Side(
+                border_style=border_kwargs.get('border_style', 'thin'),
+                color=border_kwargs.get('color', '000000')
+            )
+            style['border'] = Border(
+                left=border_side,
+                right=border_side,
+                top=border_side,
+                bottom=border_side
+            )
+        
+        # Parse alignment
+        if config.has_option(section, 'alignment'):
+            align_parts = [p.split('=') for p in config.get(section, 'alignment').split(', ')]
+            align_kwargs = {k.strip(): v.strip() for k, v in align_parts}
+            style['alignment'] = Alignment(
+                horizontal=align_kwargs.get('horizontal', 'left'),
+                vertical=align_kwargs.get('vertical', 'center'),
+                wrap_text=align_kwargs.get('wrap_text', 'False') == 'True'
+            )
+        
+        # Parse width if exists
+        if config.has_option(section, 'width'):
+            style['width'] = float(config.get(section, 'width'))
+        
+        return style
+    
+    for section in config.sections():
+        styles[section] = parse_style(section)
+    
+    return styles
 
-STYLES = {}
-
-def load_styles_from_ini(ini_file_path):
-    """
-    Load styles from the INI file and store them in the global STYLES dictionary.
-    """
-    global STYLES
-    config = configparser.ConfigParser()
-    try:
-        config.read(ini_file_path)
-        if not config.sections():
-            logger.error(f"INI file '{ini_file_path}' is empty or not found.")
-            sys.exit(1)
-
-        for section in config.sections():
-            STYLES[section] = {}
-            for key, value in config[section].items():
-                if key == 'font':
-                    font_attrs = {}
-                    for attr in value.split(','):
-                        attr_name, attr_value = attr.strip().split('=')
-                        if attr_name == "size":
-                            attr_value = int(attr_value)
-                        elif attr_name in ["bold", "italic"]:
-                            attr_value = attr_value.lower() == "true"
-                        elif attr_name == "color":
-                            if not attr_value.startswith("FF"):
-                                attr_value = "FF" + attr_value  # Ensure alpha channel
-                            attr_value = Color(rgb=attr_value)
-                        if attr_name in ["name", "size", "bold", "italic", "color"]:
-                            font_attrs[attr_name] = attr_value
-                    STYLES[section]['font'] = Font(**font_attrs)
-                elif key == 'fill':
-                    fill_attrs = {}
-                    for attr in value.split(','):
-                        attr_name, attr_value = attr.strip().split('=')
-                        if attr_name in ["start_color", "end_color"]:
-                            if not attr_value.startswith("FF"):
-                                attr_value = "FF" + attr_value  # Ensure alpha channel
-                            attr_value = Color(rgb=attr_value)
-                        fill_attrs[attr_name] = attr_value
-                    STYLES[section]['fill'] = PatternFill(**fill_attrs)
-                elif key == 'alignment':
-                    alignment_attrs = {}
-                    for attr in value.split(','):
-                        attr_name, attr_value = attr.strip().split('=')
-                        alignment_attrs[attr_name] = attr_value
-                    STYLES[section]['alignment'] = Alignment(**alignment_attrs)
-                elif key == 'border':
-                    border_attrs = {}
-                    for attr in value.split(','):
-                        attr_name, attr_value = attr.strip().split('=')
-                        border_attrs[attr_name] = Side(style=attr_value)
-                    STYLES[section]['border'] = Border(**border_attrs)
-                elif key == 'width':
-                    STYLES[section]['width'] = float(value)
-    except Exception as e:
-        logger.error(f"Failed to load styles from INI file: {e}")
-        sys.exit(1)
-
-# Load styles from the INI file
-load_styles_from_ini('config/table_format.ini')
+STYLES = load_table_styles()
